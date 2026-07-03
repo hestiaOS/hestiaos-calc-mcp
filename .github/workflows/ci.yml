@@ -1,0 +1,66 @@
+# CI configuration for calc-mcp
+#
+# NOTE: Python + Hypothesis tests run in CI.
+# The Idris kernel build (idris2 RefC → .so) requires the idris2 toolchain
+# which is NOT available in standard runner images. See idris/BUILD.md for
+# local build instructions.
+#
+# This file is staged (not pushed/executed) — M7 convention.
+
+name: calc-mcp CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev]"
+
+      # NOTE: Idris kernel build requires `idris2` and `gmp`.
+      # If a self-hosted runner with the Idris toolchain is available,
+      # uncomment and adapt the following step:
+      #
+      # - name: Build Idris kernel
+      #   run: |
+      #     cd idris
+      #     export CPPFLAGS="-I/usr/include"
+      #     export LDFLAGS="-L/usr/lib"
+      #     idris2 libcalc_main.idr --codegen refc -o libcalc
+      #     gcc -c -I/usr/include/idris2-0.8.0/support/refc \
+      #            -I/usr/include/idris2-0.8.0/support/c \
+      #            -fPIC calc_wrapper.c -o calc_wrapper.o
+      #     gcc -shared -o libcalc.so \
+      #        calc_wrapper.o build/exec/libcalc.o \
+      #        /usr/lib/idris2-0.8.0/support/refc/libidris2_refc.a \
+      #        /usr/lib/idris2-0.8.0/lib/libidris2_support.a \
+      #        -lgmp
+      #     cd ..
+      #
+      # Without Idris, the degraded Python fallback (fractions.Fraction)
+      # is used automatically.
+
+      - name: Run tests (core + numeric + tiers)
+        run: pytest -v --tb=short
+        env:
+          # Skip soak and perf tests in CI (they need psutil and >1s runs)
+          PYTEST_ADDOPTS: "-k 'not soak and not perf'"

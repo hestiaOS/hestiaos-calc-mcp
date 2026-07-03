@@ -1,0 +1,4 @@
+# Public export exclusions
+# Files that remain in-source but are excluded from `git archive` public projections.
+IMPLEMENTATION-PLAN.md  export-ignore
+audits/                 export-ignore
